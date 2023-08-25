@@ -23,17 +23,10 @@
 #ifndef HOSTDEV_FACE_ESTIMATES_H
 #define HOSTDEV_FACE_ESTIMATES_H
 
-//#include <iostream>
 #include "vec.h"
-//#include "algorithm"
-//#include "cmath"
 #include "cpu_slope_limiters.hpp"
 
-#include "cuda_header.h"
-#ifdef __CUDACC__
-#include "cuda.h"
-#include "cuda_runtime.h"
-#endif
+#include "../arch/arch_device_api.h"
 
 /*enum for setting face value and derivative estimates. Implicit ones
   not supported in the solver, so they are now not listed*/
@@ -48,7 +41,7 @@ enum face_estimate_order {h4, h5, h6, h8};
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h8_left_face_value(const Vec * const values, uint k, Vec &fv_l)
+ARCH_HOSTDEV inline void compute_h8_left_face_value(const Vec * const values, uint k, Vec &fv_l)
 {
    fv_l = 1.0/840.0 * (
               - 3.0 * values[k - 4]
@@ -71,7 +64,7 @@ CUDA_HOSTDEV inline void compute_h8_left_face_value(const Vec * const values, ui
   \param i Index of cell in values for which the left face derivativeis computed
   \param fd_l Face derivative on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h7_left_face_derivative(const Vec * const values, uint k, Vec &fd_l){
+ARCH_HOSTDEV inline void compute_h7_left_face_derivative(const Vec * const values, uint k, Vec &fd_l){
     fd_l = 1.0/5040.0 * (
        + 9.0 * values[k - 4]
        - 119.0 * values[k - 3]
@@ -92,7 +85,7 @@ CUDA_HOSTDEV inline void compute_h7_left_face_derivative(const Vec * const value
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h6_left_face_value(const Vec * const values, uint k, Vec &fv_l)
+ARCH_HOSTDEV inline void compute_h6_left_face_value(const Vec * const values, uint k, Vec &fv_l)
 {
   //compute left value
    fv_l = 1.0/60.0 * (values[k - 3]
@@ -112,7 +105,7 @@ CUDA_HOSTDEV inline void compute_h6_left_face_value(const Vec * const values, ui
   \param i Index of cell in values for which the left face derivativeis computed
   \param fd_l Face derivative on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h5_left_face_derivative(const Vec * const values, uint k, Vec &fd_l)
+ARCH_HOSTDEV inline void compute_h5_left_face_derivative(const Vec * const values, uint k, Vec &fd_l)
 {
   fd_l = 1.0/180.0 * (245 * (values[k] - values[k - 1])
                      - 25 * (values[k + 1] - values[k - 2])
@@ -126,7 +119,7 @@ CUDA_HOSTDEV inline void compute_h5_left_face_derivative(const Vec * const value
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h5_face_values(const Vec * const values, uint k, Vec &fv_l, Vec &fv_r)
+ARCH_HOSTDEV inline void compute_h5_face_values(const Vec * const values, uint k, Vec &fv_l, Vec &fv_r)
 {
   //compute left values
   fv_l = 1.0/60.0 * (- 3.0 * values[k - 2]
@@ -149,7 +142,7 @@ CUDA_HOSTDEV inline void compute_h5_face_values(const Vec * const values, uint k
   \param i Index of cell in values for which the left face derivativeis computed
   \param fd_l Face derivative on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h4_left_face_derivative(const Vec * const values, uint k, Vec &fd_l)
+ARCH_HOSTDEV inline void compute_h4_left_face_derivative(const Vec * const values, uint k, Vec &fd_l)
 {
   fd_l = 1.0/12.0 * (15.0 * (values[k] - values[k - 1]) - (values[k + 1] - values[k - 2]));
 }
@@ -163,7 +156,7 @@ CUDA_HOSTDEV inline void compute_h4_left_face_derivative(const Vec * const value
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h4_left_face_value(const Vec * const values, uint k, Vec &fv_l)
+ARCH_HOSTDEV inline void compute_h4_left_face_value(const Vec * const values, uint k, Vec &fv_l)
 {
   //compute left value
   fv_l = 1.0/12.0 * ( - 1.0 * values[k - 2]
@@ -182,8 +175,7 @@ CUDA_HOSTDEV inline void compute_h4_left_face_value(const Vec * const values, ui
   \param fv_l Face value on left face of cell i
   \param h Array with cell widths. Can be in abritrary units since they always cancel. Maybe 1/refinement ratio?
 */
-CUDA_HOSTDEV inline void compute_h4_left_face_value_nonuniform(const Vec * const h, const Vec * const u, uint k, Vec &fv_l) {
-
+ARCH_HOSTDEV inline void compute_h4_left_face_value_nonuniform(const Realf * const h, const Vec * const u, uint k, Vec &fv_l) {
    fv_l = (
            1.0 / ( h[k - 2] + h[k - 1] + h[k] + h[k + 1] )
            * ( ( h[k - 2] + h[k - 1] ) * ( h[k] + h[k + 1] ) / ( h[k - 1] + h[k] )
@@ -207,7 +199,7 @@ CUDA_HOSTDEV inline void compute_h4_left_face_value_nonuniform(const Vec * const
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */
-CUDA_HOSTDEV inline void compute_h3_left_face_derivative(const Vec * const values, uint k, Vec &fv_l)
+ARCH_HOSTDEV inline void compute_h3_left_face_derivative(const Vec * const values, uint k, Vec &fv_l)
 {
   /*compute left value*/
   fv_l = 1.0/12.0 * (15 * (values[k] - values[k - 1]) - (values[k + 1] - values[k - 2]));
@@ -218,7 +210,7 @@ CUDA_HOSTDEV inline void compute_h3_left_face_derivative(const Vec * const value
   2) Makes face values bounded
   3) Makes sure face slopes are consistent with PLM slope
 */
-CUDA_HOSTDEV inline void compute_filtered_face_values_derivatives(const Vec * const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r, const Realv threshold)
+ARCH_HOSTDEV inline void compute_filtered_face_values_derivatives(const Vec * const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r, const Realv threshold)
 {
    switch(order)
    {
@@ -284,7 +276,7 @@ CUDA_HOSTDEV inline void compute_filtered_face_values_derivatives(const Vec * co
   2) Makes face values bounded
   3) Makes sure face slopes are consistent with PLM slope
 */
-CUDA_HOSTDEV inline void compute_filtered_face_values(const Vec * const values, uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, const Realv threshold)
+ARCH_HOSTDEV inline void compute_filtered_face_values(const Vec * const values, uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, const Realv threshold)
 {
   switch(order)
   {
@@ -339,7 +331,7 @@ CUDA_HOSTDEV inline void compute_filtered_face_values(const Vec * const values, 
 
 
 
-CUDA_HOSTDEV inline void compute_filtered_face_values_nonuniform(const Vec * const dv, const Vec * const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, const Realv threshold){
+ARCH_HOSTDEV inline void compute_filtered_face_values_nonuniform(const Realf * const dv, const Vec * const values, uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, const Realv threshold){
   switch(order){
   case h4:
      compute_h4_left_face_value_nonuniform(dv, values, k, fv_l);
@@ -392,7 +384,7 @@ CUDA_HOSTDEV inline void compute_filtered_face_values_nonuniform(const Vec * con
    }
 }
 
-CUDA_HOSTDEV inline Vec get_D2aLim(const Vec * h, const Vec * values, uint k, const Vec C, Vec & fv) {
+ARCH_HOSTDEV inline Vec get_D2aLim(const Realf * h, const Vec * values, uint k, const Vec C, Vec & fv) {
 
   // Colella & Sekora, eq. 18
   Vec invh2 = 1.0 / (h[k] * h[k]);
@@ -411,7 +403,7 @@ CUDA_HOSTDEV inline Vec get_D2aLim(const Vec * h, const Vec * values, uint k, co
 
 }
 
-CUDA_HOSTDEV inline void constrain_face_values(const Vec * h,const Vec * values,uint k,Vec & fv_l, Vec & fv_r) {
+ARCH_HOSTDEV inline void constrain_face_values(const Realf * h,const Vec * values,uint k,Vec & fv_l, Vec & fv_r) {
 
   const Vec C = 1.25;
   Vec invh2 = 1.0 / (h[k] * h[k]);
@@ -458,7 +450,7 @@ CUDA_HOSTDEV inline void constrain_face_values(const Vec * h,const Vec * values,
   //return faceInterpolants;
 }
 
-CUDA_HOSTDEV inline void compute_filtered_face_values_nonuniform_conserving(const Vec * const dv, const Vec * const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, const Realv threshold){
+ARCH_HOSTDEV inline void compute_filtered_face_values_nonuniform_conserving(const Realf * const dv, const Vec * const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r, const Realv threshold){
    switch(order){
       case h4:
          compute_h4_left_face_value_nonuniform(dv, values, k, fv_l);
@@ -491,9 +483,9 @@ CUDA_HOSTDEV inline void compute_filtered_face_values_nonuniform_conserving(cons
    }
 
    //check for extrema
-   Vecb is_extrema = (slope_abs == Vec(0.0));
-   Vecb filter_l = (values[k - 1] - fv_l) * (fv_l - values[k]) < 0 ;
-   Vecb filter_r = (values[k + 1] - fv_r) * (fv_r - values[k]) < 0;
+   //Vecb is_extrema = (slope_abs == Vec(0.0));
+   //Vecb filter_l = (values[k - 1] - fv_l) * (fv_l - values[k]) < 0 ;
+   //Vecb filter_r = (values[k + 1] - fv_r) * (fv_r - values[k]) < 0;
    //  if(horizontal_or(is_extrema) || horizontal_or(filter_l) || horizontal_or(filter_r)) {
    // Colella & Sekora, eq. 20
    if(horizontal_or((fv_r - values[k]) * (values[k] - fv_l) <= Vec(0.0))
@@ -537,14 +529,14 @@ CUDA_HOSTDEV inline void compute_filtered_face_values_nonuniform_conserving(cons
 
 
 
-/**** 
-      Define functions for Realf instead of Vec 
+/****
+      Define functions for Realf instead of Vec
 ***/
 
 
 
 
-CUDA_DEV inline void compute_h8_left_face_value(const Vec * const values, uint k, Realf &fv_l, const int index)
+ARCH_DEV inline void compute_h8_left_face_value(const Vec * const values, uint k, Realf &fv_l, const int index)
 {
    fv_l = 1.0/840.0 * (
               - 3.0 * values[k - 4][index]
@@ -556,7 +548,7 @@ CUDA_DEV inline void compute_h8_left_face_value(const Vec * const values, uint k
               + 29.0 * values[k + 2][index]
               - 3.0 * values[k + 3][index]);
 }
-CUDA_DEV inline void compute_h7_left_face_derivative(const Vec * const values, uint k, Realf &fd_l, const int index){
+ARCH_DEV inline void compute_h7_left_face_derivative(const Vec * const values, uint k, Realf &fd_l, const int index){
     fd_l = 1.0/5040.0 * (
        + 9.0 * values[k - 4][index]
        - 119.0 * values[k - 3][index]
@@ -567,7 +559,7 @@ CUDA_DEV inline void compute_h7_left_face_derivative(const Vec * const values, u
        + 119.0 * values[k + 2][index]
        - 9.0 * values[k + 3][index]);
 }
-CUDA_DEV inline void compute_h6_left_face_value(const Vec * const values, uint k, Realf &fv_l, const int index)
+ARCH_DEV inline void compute_h6_left_face_value(const Vec * const values, uint k, Realf &fv_l, const int index)
 {
   //compute left value
    fv_l = 1.0/60.0 * (values[k - 3][index]
@@ -577,13 +569,13 @@ CUDA_DEV inline void compute_h6_left_face_value(const Vec * const values, uint k
             - 8.0 * values[k + 1][index]
             + values[k + 2][index]);
 }
-CUDA_DEV inline void compute_h5_left_face_derivative(const Vec * const values, uint k, Realf &fd_l, const int index)
+ARCH_DEV inline void compute_h5_left_face_derivative(const Vec * const values, uint k, Realf &fd_l, const int index)
 {
   fd_l = 1.0/180.0 * (245 * (values[k][index] - values[k - 1][index])
                      - 25 * (values[k + 1][index] - values[k - 2][index])
                      + 2 * (values[k + 2][index] - values[k - 3][index]));
 }
-CUDA_DEV inline void compute_h5_face_values(const Vec * const values, uint k, Realf &fv_l, Realf &fv_r, const int index)
+ARCH_DEV inline void compute_h5_face_values(const Vec * const values, uint k, Realf &fv_l, Realf &fv_r, const int index)
 {
   //compute left values
   fv_l = 1.0/60.0 * (- 3.0 * values[k - 2][index]
@@ -597,11 +589,11 @@ CUDA_DEV inline void compute_h5_face_values(const Vec * const values, uint k, Re
                      + 27.0 * values[k + 1][index]
                      - 3.0 * values[k + 2][index]);
 }
-CUDA_DEV inline void compute_h4_left_face_derivative(const Vec * const values, uint k, Realf &fd_l, const int index)
+ARCH_DEV inline void compute_h4_left_face_derivative(const Vec * const values, uint k, Realf &fd_l, const int index)
 {
   fd_l = 1.0/12.0 * (15.0 * (values[k][index] - values[k - 1][index]) - (values[k + 1][index] - values[k - 2][index]));
 }
-CUDA_DEV inline void compute_h4_left_face_value(const Vec * const values, uint k, Realf &fv_l, const int index)
+ARCH_DEV inline void compute_h4_left_face_value(const Vec * const values, uint k, Realf &fv_l, const int index)
 {
   //compute left value
   fv_l = 1.0/12.0 * ( - 1.0 * values[k - 2][index]
@@ -610,30 +602,29 @@ CUDA_DEV inline void compute_h4_left_face_value(const Vec * const values, uint k
                       - 1.0 * values[k + 1][index]);
 }
 
-CUDA_DEV inline void compute_h4_left_face_value_nonuniform(const Vec * const h, const Vec * const u, uint k, Realf &fv_l, const int index) {
-
+ARCH_DEV inline void compute_h4_left_face_value_nonuniform(const Realf * const h, const Vec * const u, uint k, Realf &fv_l, const int index) {
    fv_l = (
-           1.0 / ( h[k - 2][index] + h[k - 1][index] + h[k][index] + h[k + 1][index] )
-           * ( ( h[k - 2][index] + h[k - 1][index] ) * ( h[k][index] + h[k + 1][index] ) / ( h[k - 1][index] + h[k][index] )
-               * ( u[k - 1][index] * h[k][index] + u[k][index] * h[k - 1][index] )
-               * (1.0 / ( h[k - 2][index] + h[k - 1][index] + h[k][index] ) + 1.0 / ( h[k - 1][index] + h[k][index] + h[k + 1][index] ) )
-               + ( h[k][index] * ( h[k][index] + h[k + 1][index] ) ) / ( ( h[k - 2][index] + h[k - 1][index] + h[k][index] ) * (h[k - 2][index] + h[k - 1][index] ) )
-               * ( u[k - 1][index] * (h[k - 2][index] + 2.0 * h[k - 1][index] ) - ( u[k - 2][index] * h[k - 1][index] ) )
-               + h[k - 1][index] * ( h[k - 2][index] + h[k - 1][index] ) / ( ( h[k - 1][index] + h[k][index] + h[k + 1][index] ) * ( h[k][index] + h[k + 1][index] ) )
-               * ( u[k][index] * ( 2.0 * h[k][index] + h[k + 1][index] ) - u[k + 1][index] * h[k][index] ) )
+           1.0 / ( h[k - 2] + h[k - 1] + h[k] + h[k + 1] )
+           * ( ( h[k - 2] + h[k - 1] ) * ( h[k] + h[k + 1] ) / ( h[k - 1] + h[k] )
+               * ( u[k - 1][index] * h[k] + u[k][index] * h[k - 1] )
+               * (1.0 / ( h[k - 2] + h[k - 1] + h[k] ) + 1.0 / ( h[k - 1] + h[k] + h[k + 1] ) )
+               + ( h[k] * ( h[k] + h[k + 1] ) ) / ( ( h[k - 2] + h[k - 1] + h[k] ) * (h[k - 2] + h[k - 1] ) )
+               * ( u[k - 1][index] * (h[k - 2] + 2.0 * h[k - 1] ) - ( u[k - 2][index] * h[k - 1] ) )
+               + h[k - 1] * ( h[k - 2] + h[k - 1] ) / ( ( h[k - 1] + h[k] + h[k + 1] ) * ( h[k] + h[k + 1] ) )
+               * ( u[k][index] * ( 2.0 * h[k] + h[k + 1] ) - u[k + 1][index] * h[k] ) )
            );
 }
 
 
 
 
-CUDA_DEV inline void compute_h3_left_face_derivative(const Vec * const values, uint k, Realf &fv_l, const int index)
+ARCH_DEV inline void compute_h3_left_face_derivative(const Vec * const values, uint k, Realf &fv_l, const int index)
 {
   /*compute left value*/
   fv_l = 1.0/12.0 * (15 * (values[k][index] - values[k - 1][index]) - (values[k + 1][index] - values[k - 2][index]));
 }
 
-CUDA_DEV inline void compute_filtered_face_values_derivatives(const Vec * const values, uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, Realf &fd_l, Realf &fd_r, const Realv threshold, const int index)
+ARCH_DEV inline void compute_filtered_face_values_derivatives(const Vec * const values, uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, Realf &fd_l, Realf &fd_r, const Realv threshold, const int index)
 {
    switch(order)
    {
@@ -699,7 +690,7 @@ CUDA_DEV inline void compute_filtered_face_values_derivatives(const Vec * const 
   2) Makes face values bounded
   3) Makes sure face slopes are consistent with PLM slope
 */
-CUDA_DEV inline void compute_filtered_face_values(const Vec * const values, uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, const Realv threshold, const int index)
+ARCH_DEV inline void compute_filtered_face_values(const Vec * const values, uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, const Realv threshold, const int index)
 {
   switch(order)
   {
@@ -749,7 +740,7 @@ CUDA_DEV inline void compute_filtered_face_values(const Vec * const values, uint
   }
 }
 
-CUDA_DEV inline void compute_filtered_face_values_nonuniform(const Vec * const dv, const Vec * const values,uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, const Realv threshold, const int index){
+ARCH_DEV inline void compute_filtered_face_values_nonuniform(const Realf * const dv, const Vec * const values,uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, const Realv threshold, const int index){
   switch(order){
   case h4:
      compute_h4_left_face_value_nonuniform(dv, values, k, fv_l, index);
@@ -799,10 +790,10 @@ CUDA_DEV inline void compute_filtered_face_values_nonuniform(const Vec * const d
    }
 }
 
-CUDA_DEV inline Realf get_D2aLim(const Vec * h, const Vec * values, uint k, const Realv C, Realf & fv, const int index) {
+ARCH_DEV inline Realf get_D2aLim(const Realf * h, const Vec * values, uint k, const Realv C, Realf & fv, const int index) {
 
   // Colella & Sekora, eq. 18
-  Realf invh2 = 1.0 / (h[k][index] * h[k][index]);
+  Realf invh2 = 1.0 / (h[k] * h[k]);
   Realf d2a =  invh2 * 3.0 * (values[k    ][index] - 2.0 * fv                   + values[k + 1][index]);
   Realf d2aL = invh2       * (values[k - 1][index] - 2.0 * values[k    ][index] + values[k + 1][index]);
   Realf d2aR = invh2       * (values[k    ][index] - 2.0 * values[k + 1][index] + values[k + 2][index]);
@@ -817,16 +808,16 @@ CUDA_DEV inline Realf get_D2aLim(const Vec * h, const Vec * values, uint k, cons
 
 }
 
-CUDA_DEV inline void constrain_face_values(const Vec * h,const Vec * values,uint k,Realf & fv_l, Realf & fv_r, const int index) {
+ARCH_DEV inline void constrain_face_values(const Realf * h,const Vec * values,uint k,Realf & fv_l, Realf & fv_r, const int index) {
 
   const Realv C = 1.25;
-  Realf invh2 = 1.0 / (h[k][index] * h[k][index]);
+  Realf invh2 = 1.0 / (h[k] * h[k]);
 
   // Colella & Sekora, eq 19
   Realf p_face = 0.5 * (values[k][index] + values[k + 1][index])
-     - h[k][index] * h[k][index] / 3.0 * get_D2aLim(h,values,k  ,C,fv_r, index);
+     - h[k] * h[k] / 3.0 * get_D2aLim(h,values,k  ,C,fv_r, index);
   Realf m_face = 0.5 * (values[k-1][index] + values[k][index])
-     - h[k-1][index] * h[k-1][index] / 3.0 * get_D2aLim(h,values,k-1,C,fv_l, index);
+     - h[k-1] * h[k-1] / 3.0 * get_D2aLim(h,values,k-1,C,fv_l, index);
 
   // Colella & Sekora, eq 21
   Realf d2a = -2.0 * invh2 * 6.0 * (values[k][index] - 3.0 * (m_face + p_face)); // a6,j from eq. 7
@@ -864,7 +855,7 @@ CUDA_DEV inline void constrain_face_values(const Vec * h,const Vec * values,uint
   //return faceInterpolants;
 }
 
-CUDA_DEV inline void compute_filtered_face_values_nonuniform_conserving(const Vec * const dv, const Vec * const values,uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, const Realv threshold, const int index){
+ARCH_DEV inline void compute_filtered_face_values_nonuniform_conserving(const Realf * const dv, const Vec * const values,uint k, face_estimate_order order, Realf &fv_l, Realf &fv_r, const Realv threshold, const int index){
    switch(order){
       case h4:
          compute_h4_left_face_value_nonuniform(dv, values, k, fv_l, index);
@@ -897,7 +888,7 @@ CUDA_DEV inline void compute_filtered_face_values_nonuniform_conserving(const Ve
    }
 
    //check for extrema
-   bool is_extrema = (slope_abs == 0.0);
+   //bool is_extrema = (slope_abs == 0.0);
    bool filter_l = (values[k - 1][index] - fv_l) * (fv_l - values[k][index]) < 0 ;
    bool filter_r = (values[k + 1][index] - fv_r) * (fv_r - values[k][index]) < 0;
    //  if(horizontal_or(is_extrema) || horizontal_or(filter_l) || horizontal_or(filter_r)) {

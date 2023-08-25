@@ -24,20 +24,12 @@
 #define HOSTDEV_1D_PQM_H
 
 #include "vec.h"
-#include "cuda_header.h"
-#ifdef __CUDACC__
-#include "device_launch_parameters.h"
-#include "cuda.h"
-#include "cuda_runtime.h"
-#endif
+#include "../arch/arch_device_api.h"
 #include "cpu_slope_limiters.hpp"
 #include "cpu_face_estimates.hpp"
 
-
-
-
 /*make sure quartic polynomial is monotonic*/
-static CUDA_HOSTDEV inline void filter_pqm_monotonicity(Vec *values, uint k, Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r){
+static ARCH_HOSTDEV inline void filter_pqm_monotonicity(Vec *values, uint k, Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r){
    /*second derivative coefficients, eq 23 in white et al.*/
    Vec b0 =   60.0 * values[k] - 24.0 * fv_r - 36.0 * fv_l + 3.0 * (fd_r - 3.0 * fd_l);
    Vec b1 = -360.0 * values[k] + 36.0 * fd_l - 24.0 * fd_r + 168.0 * fv_r + 192.0 * fv_l;
@@ -100,11 +92,11 @@ static CUDA_HOSTDEV inline void filter_pqm_monotonicity(Vec *values, uint k, Vec
       fd_r.store(fda_r);
       slope_sign.store(slope_signa);
       //todo store and then load data to avoid inserts (is it beneficial...?)
-      //serialized the handling of inflexion points, these do not happen for smooth regions
-      for(uint i = 0;i < VECL; i++)
-      {
-         if(fixInflexion[i])
-         {
+
+//serialized the handling of inflexion points, these do not happen for smooth regions
+      #pragma omp simd
+      for(uint i = 0;i < VECL; i++) {
+         if(fixInflexion[i]){
             //need to collapse, at least one inflexion point has wrong
             //sign.
             if(fabs(plm_slope_l[i]) <= fabs(plm_slope_r[i]))
@@ -163,7 +155,7 @@ static CUDA_HOSTDEV inline void filter_pqm_monotonicity(Vec *values, uint k, Vec
 //   White, Laurent, and Alistair Adcroft. “A High-Order Finite Volume Remapping Scheme for Nonuniform Grids: The Piecewise Quartic Method (PQM).” Journal of Computational Physics 227, no. 15 (July 2008): 7394–7422. doi:10.1016/j.jcp.2008.04.026.
 // */
 
-static CUDA_HOSTDEV inline void compute_pqm_coeff(Vec *values, face_estimate_order order, uint k, Vec a[5], const Realv threshold)
+static ARCH_HOSTDEV inline void compute_pqm_coeff(Vec *values, face_estimate_order order, uint k, Vec a[5], const Realv threshold)
 {
    Vec fv_l; /*left face value*/
    Vec fv_r; /*right face value*/
@@ -182,14 +174,14 @@ static CUDA_HOSTDEV inline void compute_pqm_coeff(Vec *values, face_estimate_ord
 }
 
 
-/**** 
-      Define functions for Realf instead of Vec 
+/****
+      Define functions for Realf instead of Vec
 ***/
 
 /*make sure quartic polynomial is monotonic*/
-static CUDA_DEV inline void filter_pqm_monotonicity(Vec *values, uint k, Realf &fv_l, Realf &fv_r, Realf &fd_l, Realf &fd_r, const int index) {
+static ARCH_DEV inline void filter_pqm_monotonicity(Vec *values, uint k, Realf &fv_l, Realf &fv_r, Realf &fd_l, Realf &fd_r, const int index) {
    /*fixed values give to roots clearly outside [0,1], or nonexisting ones*/
-   
+
    /*second derivative coefficients, eq 23 in white et al.*/
    Realf b0 =   60.0 * values[k][index] - 24.0 * fv_r - 36.0 * fv_l + 3.0 * (fd_r - 3.0 * fd_l);
    Realf b1 = -360.0 * values[k][index] + 36.0 * fd_l - 24.0 * fd_r + 168.0 * fv_r + 192.0 * fv_l;
@@ -236,7 +228,7 @@ static CUDA_DEV inline void filter_pqm_monotonicity(Vec *values, uint k, Realf &
       Realv fda_r = fd_r;
       Realv slope_signa = slope_sign;
       //need to collapse, point has wrong sign
-      
+
       if(fabs(plm_slope_l) <= fabs(plm_slope_r))
       {
          //collapse to left edge (eq 21)
@@ -282,7 +274,7 @@ static CUDA_DEV inline void filter_pqm_monotonicity(Vec *values, uint k, Realf &
    }
 }
 
-static CUDA_DEV inline void compute_pqm_coeff(Vec *values, face_estimate_order order, uint k, Realf a[5], const Realv threshold, const int index)
+static ARCH_DEV inline void compute_pqm_coeff(Vec *values, face_estimate_order order, uint k, Realf a[5], const Realv threshold, const int index)
 {
    Realf fv_l; /*left face value*/
    Realf fv_r; /*right face value*/
