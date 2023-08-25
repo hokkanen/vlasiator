@@ -28,6 +28,12 @@
 #include "algorithm"
 #include "cmath"
 
+#include "cuda_header.h"
+#ifdef __CUDACC__
+#include "device_launch_parameters.h"
+#include "cuda.h"
+#include "cuda_runtime.h"
+#endif
 #include "cpu_slope_limiters.hpp"
 #include "cpu_face_estimates.hpp"
 
@@ -36,7 +42,7 @@ using namespace std;
 /*
   Compute parabolic reconstruction with an explicit scheme
 */
-ARCH_HOSTDEV inline void compute_ppm_coeff_nonuniform(const Vec * const dv, const Vec * const values, face_estimate_order order, uint k, Vec a[3], const Realv threshold){
+CUDA_HOSTDEV inline void compute_ppm_coeff_nonuniform(const Vec * const dv, const Vec * const values, face_estimate_order order, uint k, Vec a[3], const Realv threshold){
    Vec fv_l; /*left face value*/
    Vec fv_r; /*right face value*/
    compute_filtered_face_values_nonuniform(dv, values, k, order, fv_l, fv_r, threshold); 
@@ -47,7 +53,7 @@ ARCH_HOSTDEV inline void compute_ppm_coeff_nonuniform(const Vec * const dv, cons
 
    //std::cout << "value = " << values[k][0] << ", m_face = " << m_face[0] << ", p_face = " << p_face[0] << "\n";
    //std::cout << values[k][0] - m_face[0] << ", " << values[k][0] - p_face[0] << "\n";
-
+   
    m_face = select((p_face - m_face) * (values[k] - 0.5 * (m_face + p_face)) >
                    (p_face - m_face)*(p_face - m_face) * one_sixth,
                    3 * values[k] - 2 * p_face,
@@ -74,7 +80,7 @@ ARCH_HOSTDEV inline void compute_ppm_coeff_nonuniform(const Vec * const dv, cons
       Define functions for Realf instead of Vec 
 ***/
 
-ARCH_DEV inline void compute_ppm_coeff_nonuniform(const Vec * const dv, const Vec * const values, face_estimate_order order, uint k, Realf a[3], const Realv threshold, const int index){
+CUDA_DEV inline void compute_ppm_coeff_nonuniform(const Vec * const dv, const Vec * const values, face_estimate_order order, uint k, Realf a[3], const Realv threshold, const int index){
    Realf fv_l; /*left face value*/
    Realf fv_r; /*right face value*/
    compute_filtered_face_values_nonuniform(dv, values, k, order, fv_l, fv_r, threshold, index); 

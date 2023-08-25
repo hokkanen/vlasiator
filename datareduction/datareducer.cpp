@@ -1207,7 +1207,6 @@ bool DataReducer::writeData(const unsigned int& operatorID,
    if(writingOperator == nullptr) {
       return false;
    }
-
    return writingOperator->writeData(mpiGrid,cells,meshName,vlsvWriter);
 }
 

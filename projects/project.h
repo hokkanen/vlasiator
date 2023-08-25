@@ -28,7 +28,6 @@
 #include "../spatial_cell.hpp"
 #include <dccrg.hpp>
 #include <dccrg_cartesian_geometry.hpp>
-
 #include "fsgrid.hpp"
 
 namespace projects {
@@ -54,8 +53,7 @@ namespace projects {
          const dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
          FsGrid< std::array<Real, fsgrids::bfield::N_BFIELD>, FS_STENCIL_WIDTH> & perBGrid
       ) const;
-
-
+      
       bool initialized();
       
       /** Set the background and perturbed magnetic fields for this project.
@@ -87,8 +85,8 @@ namespace projects {
          
       Real setVelocityBlock(spatial_cell::SpatialCell* cell,const vmesh::LocalID& blockLID,const uint popID) const;
 
-      virtual bool refineSpatialCells( dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid ) const;    
-
+      virtual bool refineSpatialCells( dccrg::Dccrg<spatial_cell::SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid ) const;
+      
     protected:
       /*! \brief Returns a list of blocks to loop through when initialising.
        * 
@@ -184,3 +182,4 @@ namespace projects {
 
 
 #endif
+

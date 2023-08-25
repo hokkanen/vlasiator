@@ -36,20 +36,14 @@ using namespace spatial_cell;
 
 // ***** FUNCTION DECLARATIONS ***** //
 
-template<typename REAL, uint SIZE>
-void blockVelocityFirstMoments(arch::buf<Realf> &data, 
-                               arch::buf<Real> &blockParameters,
-                               REAL (&array)[SIZE], 
-                               uint nBlocks);
+template<typename REAL> 
+void blockVelocityFirstMoments(const Realf* avgs,const Real* blockParams,
+                               REAL* array);
 
-template<typename REAL, uint SIZE>
-void blockVelocitySecondMoments(arch::buf<Realf> &data, 
-                                arch::buf<Real> &blockParameters,
-                                const REAL averageVX,
-                                const REAL averageVY,
-                                const REAL averageVZ,
-                                REAL (&array)[SIZE], 
-                                uint nBlocks);
+template<typename REAL> 
+void blockVelocitySecondMoments(const Realf* avgs,const Real* blockParams,
+                                const REAL v[3],
+                                REAL* array);
 
 void calculateMoments_R(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
                               const std::vector<CellID>& cells,
@@ -60,6 +54,7 @@ void calculateMoments_V(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
                         const bool& computeSecond);
 
 
+
 // ***** TEMPLATE FUNCTION DEFINITIONS ***** //
 
 /** Calculate the zeroth and first velocity moments for the given 
@@ -68,76 +63,78 @@ void calculateMoments_V(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
  * 'array' are as follows: array[0]=n; array[1]=n*Vx; array[2]=nVy;
  * array[3]=nVz; Here n is the scaled number density, i.e., number density 
  * times population mass / proton mass. This function is AMR safe.
- * @param data Distribution functions
- * @param blockParameters Parameters for the velocity blocks
- * @param array Array where the calculated moments are added
- * @param nBlocks The number of blocks */
-template<typename REAL, uint SIZE> inline
+ * @param avgs Distribution function.
+ * @param blockParams Parameters for the given velocity block.
+ * @param array Array of at least size four where the calculated moments are added.*/
+template<typename REAL> inline
 void blockVelocityFirstMoments(
-        arch::buf<Realf> &data,
-        arch::buf<Real> &blockParameters,
-        REAL (&array)[SIZE],
-        uint nBlocks) {
-         
-   arch::parallel_reduce<arch::sum>({WID, WID, WID, nBlocks}, 
-     ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint blockLID, Real *lsum ) {
+        const Realf* avgs,
+        const Real* blockParams,
+        REAL* array) {
 
-       const Realf* avgs = &data[blockLID*WID3];
-       const Real* blockParamsZ = &blockParameters[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS];
-       const Real DV3 = blockParamsZ[BlockParams::DVX]*blockParamsZ[BlockParams::DVY]*blockParamsZ[BlockParams::DVZ]; 
-       const Real HALF = 0.5;
+   const Real HALF = 0.5;
 
-       ARCH_INNER_BODY(i, j, k, blockLID, lsum) { 
-         const Real VX = blockParamsZ[BlockParams::VXCRD] + (i+HALF)*blockParamsZ[BlockParams::DVX];
-         const Real VY = blockParamsZ[BlockParams::VYCRD] + (j+HALF)*blockParamsZ[BlockParams::DVY];
-         const Real VZ = blockParamsZ[BlockParams::VZCRD] + (k+HALF)*blockParamsZ[BlockParams::DVZ];  
-         lsum[0] += avgs[cellIndex(i,j,k)] * DV3;
-         lsum[1] += avgs[cellIndex(i,j,k)]*VX * DV3;
-         lsum[2] += avgs[cellIndex(i,j,k)]*VY * DV3;
-         lsum[3] += avgs[cellIndex(i,j,k)]*VZ * DV3;
-       };
-     }, array);
+   Real n_sum = 0.0;
+   Real nvx_sum = 0.0;
+   Real nvy_sum = 0.0;
+   Real nvz_sum = 0.0;
+   for (uint k=0; k<WID; ++k) for (uint j=0; j<WID; ++j) for (uint i=0; i<WID; ++i) {
+      const REAL VX = blockParams[BlockParams::VXCRD] + (i+HALF)*blockParams[BlockParams::DVX];
+      const REAL VY = blockParams[BlockParams::VYCRD] + (j+HALF)*blockParams[BlockParams::DVY];
+      const REAL VZ = blockParams[BlockParams::VZCRD] + (k+HALF)*blockParams[BlockParams::DVZ];
+      
+      n_sum   += avgs[cellIndex(i,j,k)];
+      nvx_sum += avgs[cellIndex(i,j,k)]*VX;
+      nvy_sum += avgs[cellIndex(i,j,k)]*VY;
+      nvz_sum += avgs[cellIndex(i,j,k)]*VZ;
+   }
+   
+   const Real DV3 = blockParams[BlockParams::DVX]*blockParams[BlockParams::DVY]*blockParams[BlockParams::DVZ];
+   array[0] += n_sum   * DV3;
+   array[1] += nvx_sum * DV3;
+   array[2] += nvy_sum * DV3;
+   array[3] += nvz_sum * DV3;
 }
 
-/** Calculate the second velocity moments for the velocity blocks, and add 
+/** Calculate the second velocity moments for the given velocity block, and add 
  * results to 'array', which must have at least size three. After this function 
  * returns, the contents of 'array' are as follows: array[0]=n(Vx-Vx0); 
  * array[1]=n(Vy-Vy0); array[2]=n(Vz-Vz0); Here Vx0,Vy0,Vz0 are the components 
  * of the bulk velocity (calculated over all species). This function is AMR safe.
- * @param data Distribution functions
- * @param blockParameters Parameters for the velocity blocks
+ * @param avgs Distribution function.
+ * @param blockParams Parameters for the given velocity block.
  * @param averageVX Bulk velocity x
  * @param averageVY Bulk velocity y
  * @param averageVZ Bulk velocity z
- * @param array Array where the calculated moments are added
- * @param nBlocks The number of blocks */
-template<typename REAL, uint SIZE> inline
+ * @param array Array where the calculated moments are added.*/
+template<typename REAL> inline
 void blockVelocitySecondMoments(
-        arch::buf<Realf> &data,
-        arch::buf<Real> &blockParameters,
+        const Realf* avgs,
+        const Real* blockParams,
         const REAL averageVX,
         const REAL averageVY,
         const REAL averageVZ,
-        REAL (&array)[SIZE],
-        uint nBlocks) {
+        REAL* array) {
 
-   arch::parallel_reduce<arch::sum>({WID, WID, WID, nBlocks}, 
-     ARCH_LOOP_LAMBDA (const uint i, const uint j, const uint k, const uint blockLID, Real *lsum ) { 
+   const Real HALF = 0.5;
 
-       const Realf* avgs = &data[blockLID*WID3];
-       const Real* blockParams = &blockParameters[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS];
-       const Real DV3 = blockParams[BlockParams::DVX]*blockParams[BlockParams::DVY]*blockParams[BlockParams::DVZ]; 
-       const Real HALF = 0.5;
-
-       ARCH_INNER_BODY(i, j, k, blockLID, lsum) { 
-         const Real VX = blockParams[BlockParams::VXCRD] + (i+HALF)*blockParams[BlockParams::DVX];
-         const Real VY = blockParams[BlockParams::VYCRD] + (j+HALF)*blockParams[BlockParams::DVY];
-         const Real VZ = blockParams[BlockParams::VZCRD] + (k+HALF)*blockParams[BlockParams::DVZ];  
-         lsum[0] += avgs[cellIndex(i,j,k)] * (VX - averageVX) * (VX - averageVX) * DV3;
-         lsum[1] += avgs[cellIndex(i,j,k)] * (VY - averageVY) * (VY - averageVY) * DV3;
-         lsum[2] += avgs[cellIndex(i,j,k)] * (VZ - averageVZ) * (VZ - averageVZ) * DV3;
-       };
-     }, array);
+   Real nvx2_sum = 0.0;
+   Real nvy2_sum = 0.0;
+   Real nvz2_sum = 0.0;
+   for (uint k=0; k<WID; ++k) for (uint j=0; j<WID; ++j) for (uint i=0; i<WID; ++i) {
+      const Real VX = blockParams[BlockParams::VXCRD] + (i+HALF)*blockParams[BlockParams::DVX];
+      const Real VY = blockParams[BlockParams::VYCRD] + (j+HALF)*blockParams[BlockParams::DVY];
+      const Real VZ = blockParams[BlockParams::VZCRD] + (k+HALF)*blockParams[BlockParams::DVZ];
+      
+      nvx2_sum += avgs[cellIndex(i,j,k)] * (VX - averageVX) * (VX - averageVX);
+      nvy2_sum += avgs[cellIndex(i,j,k)] * (VY - averageVY) * (VY - averageVY);
+      nvz2_sum += avgs[cellIndex(i,j,k)] * (VZ - averageVZ) * (VZ - averageVZ);
+   }
+   
+   const Real DV3 = blockParams[BlockParams::DVX]*blockParams[BlockParams::DVY]*blockParams[BlockParams::DVZ];
+   array[0] += nvx2_sum * DV3;
+   array[1] += nvy2_sum * DV3;
+   array[2] += nvz2_sum * DV3;
 }
 
 #endif

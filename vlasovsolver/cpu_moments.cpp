@@ -28,8 +28,6 @@
 
 using namespace std;
 
-
-
 /** Calculate zeroth, first, and (possibly) second bulk velocity moments for the 
  * given spatial cell. The calculated moments include contributions from 
  * all existing particle populations. This function is AMR safe.
@@ -59,40 +57,29 @@ void calculateCellMoments(spatial_cell::SpatialCell* cell,
         cell->parameters[CellParams::P_33] = 0.0;
     }
 
-    // Create vectors for device buffers
-    std::vector<arch::buf<Realf>*> v_data;
-    v_data.reserve(getObjectWrapper().particleSpecies.size()); 
-    std::vector<arch::buf<Real>*> v_blockParams;
-    v_blockParams.reserve(getObjectWrapper().particleSpecies.size());
-
     // Loop over all particle species
     if (skipMoments == false) {
        for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
           vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = cell->get_velocity_blocks(popID);
           if (blockContainer.size() == 0) continue;
           
+          const Realf* data       = blockContainer.getData();
+          const Real* blockParams = blockContainer.getParameters();
           const Real mass = getObjectWrapper().particleSpecies[popID].mass;
           const Real charge = getObjectWrapper().particleSpecies[popID].charge;
-
-          // Create temporary buffers for the GPU data and push back to vector
-          v_data[popID] = new arch::buf<Realf>((Realf*)blockContainer.getData(), (uint)(blockContainer.size()*WID3*sizeof(Realf))); 
-          
-          v_blockParams[popID] = new arch::buf<Real>((Real*)blockContainer.getParameters(), (uint)(blockContainer.size()*BlockParams::N_VELOCITY_BLOCK_PARAMS*sizeof(Real))); 
- 
-          // Get pointers for easy access in the loop
-          arch::buf<Realf> data = *v_data[popID]; 
-          arch::buf<Real> blockParams = *v_blockParams[popID]; 
           
           // Temporary array for storing moments
-          Real array[4] = {0};
+          Real array[4];
+          for (int i=0; i<4; ++i) array[i] = 0.0;
 
           // Calculate species' contribution to first velocity moments
-          blockVelocityFirstMoments(data,
-                                    blockParams,
-                                    array,
-                                    (uint)blockContainer.size());
+          for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
+             blockVelocityFirstMoments(data+blockLID*WID3,
+                                       blockParams+blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS,
+                                       array);
+          }
           
-          Population &pop = cell->get_population(popID);
+          Population & pop = cell->get_population(popID);
           pop.RHO = array[0];
           pop.V[0] = divideIfNonZero(array[1], array[0]);
           pop.V[1] = divideIfNonZero(array[2], array[0]);
@@ -119,26 +106,26 @@ void calculateCellMoments(spatial_cell::SpatialCell* cell,
        vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = cell->get_velocity_blocks(popID);
        if (blockContainer.size() == 0) continue;
        
+       const Realf* data       = blockContainer.getData();
+       const Real* blockParams = blockContainer.getParameters();
        const Real mass = getObjectWrapper().particleSpecies[popID].mass;
-
-       // Get pointers for easy access in the loop
-       arch::buf<Realf> data = *v_data[popID]; 
-       arch::buf<Real> blockParams = *v_blockParams[popID]; 
        
        // Temporary array for storing moments
-       Real array[3] = {0};
-       
+       Real array[3];
+       for (int i=0; i<3; ++i) array[i] = 0.0;
+
        // Calculate species' contribution to second velocity moments
-       blockVelocitySecondMoments(data,
-                                  blockParams,
-                                  cell->parameters[CellParams::VX_R],
-                                  cell->parameters[CellParams::VY_R],
-                                  cell->parameters[CellParams::VZ_R],
-                                  array,
-                                  (uint)blockContainer.size());
+       Population & pop = cell->get_population(popID);
+       for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
+          blockVelocitySecondMoments(data+blockLID*WID3,
+                                     blockParams+blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS,
+                                     cell->parameters[CellParams::VX],
+                                     cell->parameters[CellParams::VY],
+                                     cell->parameters[CellParams::VZ],
+                                     array);
+       }
        
        // Store species' contribution to bulk velocity moments
-       Population &pop = cell->get_population(popID);
        pop.P[0] = mass*array[0];
        pop.P[1] = mass*array[1];
        pop.P[2] = mass*array[2];
@@ -147,12 +134,6 @@ void calculateCellMoments(spatial_cell::SpatialCell* cell,
        cell->parameters[CellParams::P_22] += pop.P[1];
        cell->parameters[CellParams::P_33] += pop.P[2];
     } // for-loop over particle species
-
-    // Delete temporary device buffers
-    for(auto buf_data : v_data)
-      delete buf_data;
-    for(auto buf_blockParams : v_blockParams)
-      delete buf_blockParams;
 }
 
 /** Calculate zeroth, first, and (possibly) second bulk velocity moments for the 
@@ -168,12 +149,6 @@ void calculateMoments_R(
         const bool& computeSecond) {
  
     phiprof::start("compute-moments-n");
-
-    // Create vectors for device buffers
-    std::vector<arch::buf<Realf>*> v_data;
-    v_data.reserve(getObjectWrapper().particleSpecies.size() * cells.size()); 
-    std::vector<arch::buf<Real>*> v_blockParams;
-    v_blockParams.reserve(getObjectWrapper().particleSpecies.size() * cells.size());
 
     for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
        #pragma omp parallel for
@@ -202,25 +177,19 @@ void calculateMoments_R(
 
           vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = cell->get_velocity_blocks(popID);
           if (blockContainer.size() == 0) continue;
+          const Realf* data       = blockContainer.getData();
+          const Real* blockParams = blockContainer.getParameters();
           const Real mass = getObjectWrapper().particleSpecies[popID].mass;
           const Real charge = getObjectWrapper().particleSpecies[popID].charge;
 
-          // Create temporary buffers for the GPU data and push back to vector
-          v_data[cells.size() * popID + c] = new arch::buf<Realf>((Realf*)blockContainer.getData(), (uint)(blockContainer.size()*WID3*sizeof(Realf))); 
-          v_blockParams[cells.size() * popID + c] = new arch::buf<Real>((Real*)blockContainer.getParameters(), (uint)(blockContainer.size()*BlockParams::N_VELOCITY_BLOCK_PARAMS*sizeof(Real))); 
-
-          // Get pointers for easy access in the loop
-          arch::buf<Realf> data = *v_data[cells.size() * popID + c]; 
-          arch::buf<Real> blockParams = *v_blockParams[cells.size() * popID + c]; 
-
           #ifdef DEBUG_MOMENTS
           bool ok = true;
-          if (&data[0] == NULL && blockContainer.size() > 0) ok = false;
-          if (&blockParams[0] == NULL && blockContainer.size() > 0) ok = false;
+          if (data == NULL && blockContainer.size() > 0) ok = false;
+          if (blockParams == NULL && blockContainer.size() > 0) ok = false;
           if (ok == false) {
              stringstream ss;
              ss << "ERROR in moment calculation in " << __FILE__ << ":" << __LINE__ << endl;
-             ss << "\t &data = " << data << "\t &blockParams = " << &blockParams[0] << endl;
+             ss << "\t &data = " << data << "\t &blockParams = " << blockParams << endl;
              ss << "\t size = " << blockContainer.size() << endl;
              cerr << ss.str();
              exit(1);
@@ -228,16 +197,18 @@ void calculateMoments_R(
           #endif
 
           // Temporary array where the moments for this species are accumulated
-          Real array[4] = {0};
+          Real array[4];
+          for (int i=0; i<4; ++i) array[i] = 0.0;
 
           // Calculate species' contribution to first velocity moments
-          blockVelocityFirstMoments(data,
-                                    blockParams,
-                                    array,
-                                    (uint)blockContainer.size());
+          for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
+            blockVelocityFirstMoments(data+blockLID*WID3,
+                                      blockParams+blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS,
+                                      array);
+          } // for-loop over velocity blocks
 
           // Store species' contribution to bulk velocity moments
-          Population &pop = cell->get_population(popID);
+          Population & pop = cell->get_population(popID);
           pop.RHO_R = array[0];
           pop.V_R[0] = divideIfNonZero(array[1], array[0]);
           pop.V_R[1] = divideIfNonZero(array[2], array[0]);
@@ -279,26 +250,26 @@ void calculateMoments_R(
          
          vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = cell->get_velocity_blocks(popID);
          if (blockContainer.size() == 0) continue;
+         const Realf* data       = blockContainer.getData();
+         const Real* blockParams = blockContainer.getParameters();
          const Real mass = getObjectWrapper().particleSpecies[popID].mass;
 
-         // Get pointers for easy access in the loop
-         arch::buf<Realf> data = *v_data[cells.size() * popID + c]; 
-         arch::buf<Real> blockParams = *v_blockParams[cells.size() * popID + c]; 
-
          // Temporary array where species' contribution to 2nd moments is accumulated
-         Real array[3] = {0};
+         Real array[3];
+         for (int i=0; i<3; ++i) array[i] = 0.0;
 
          // Calculate species' contribution to second velocity moments
-         blockVelocitySecondMoments(data,
-                                    blockParams,
-                                    cell->parameters[CellParams::VX_R],
-                                    cell->parameters[CellParams::VY_R],
-                                    cell->parameters[CellParams::VZ_R],
-                                    array,
-                                    (uint)blockContainer.size());
+         Population & pop = cell->get_population(popID);
+         for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
+            blockVelocitySecondMoments(data+blockLID*WID3,
+                                       blockParams+blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS,
+                                       cell->parameters[CellParams::VX_R],
+                                       cell->parameters[CellParams::VY_R],
+                                       cell->parameters[CellParams::VZ_R],
+                                       array);
+         } // for-loop over velocity blocks
 
          // Store species' contribution to 2nd bulk velocity moments
-         Population &pop = cell->get_population(popID);
          pop.P_R[0] = mass*array[0];
          pop.P_R[1] = mass*array[1];
          pop.P_R[2] = mass*array[2];
@@ -308,12 +279,6 @@ void calculateMoments_R(
          cell->parameters[CellParams::P_33_R] += pop.P_R[2];
       } // for-loop over spatial cells
    } // for-loop over particle species
-
-   // Delete temporary device buffers
-   for(auto buf_data : v_data)
-     delete buf_data;
-   for(auto buf_blockParams : v_blockParams)
-     delete buf_blockParams;
 
    phiprof::stop("compute-moments-n");
 }
@@ -332,13 +297,7 @@ void calculateMoments_V(
         const bool& computeSecond) {
  
    phiprof::start("Compute _V moments");
-
-   // Create vectors for device buffers
-   std::vector<arch::buf<Realf>*> v_data;
-   v_data.reserve(getObjectWrapper().particleSpecies.size() * cells.size()); 
-   std::vector<arch::buf<Real>*> v_blockParams;
-   v_blockParams.reserve(getObjectWrapper().particleSpecies.size() * cells.size());
- 
+   
    // Loop over all particle species
    for (uint popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
       #pragma omp parallel for
@@ -363,29 +322,24 @@ void calculateMoments_V(
 
          vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = cell->get_velocity_blocks(popID);
          if (blockContainer.size() == 0) continue;
-
+         const Realf* data       = blockContainer.getData();
+         const Real* blockParams = blockContainer.getParameters();
          const Real mass = getObjectWrapper().particleSpecies[popID].mass;
          const Real charge = getObjectWrapper().particleSpecies[popID].charge;
 
-         // Create temporary buffers for the GPU data and push back to vector
-         v_data[cells.size() * popID + c] = new arch::buf<Realf>((Realf*)blockContainer.getData(), (uint)(blockContainer.size()*WID3*sizeof(Realf))); 
-         v_blockParams[cells.size() * popID + c] = new arch::buf<Real>((Real*)blockContainer.getParameters(), (uint)(blockContainer.size()*BlockParams::N_VELOCITY_BLOCK_PARAMS*sizeof(Real))); 
-
-         // Get pointers for easy access in the loop
-         arch::buf<Realf> data = *v_data[cells.size() * popID + c]; 
-         arch::buf<Real> blockParams = *v_blockParams[cells.size() * popID + c]; 
-
          // Temporary array for storing moments
-         Real array[4] = {0};
+         Real array[4];
+         for (int i=0; i<4; ++i) array[i] = 0.0;
 
          // Calculate species' contribution to first velocity moments
-         blockVelocityFirstMoments(data,
-                                   blockParams,
-                                   array,
-                                   (uint)blockContainer.size());
+         for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
+            blockVelocityFirstMoments(data+blockLID*WID3,
+                                      blockParams+blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS,
+                                      array);
+         }
          
          // Store species' contribution to bulk velocity moments
-         Population &pop = cell->get_population(popID);
+         Population & pop = cell->get_population(popID);
          pop.RHO_V = array[0];
          pop.V_V[0] = divideIfNonZero(array[1], array[0]);
          pop.V_V[1] = divideIfNonZero(array[2], array[0]);
@@ -396,7 +350,6 @@ void calculateMoments_V(
          cell->parameters[CellParams::VY_V] += array[2]*mass;
          cell->parameters[CellParams::VZ_V] += array[3]*mass;
          cell->parameters[CellParams::RHOQ_V  ] += array[0]*charge;
-         
       } // for-loop over spatial cells
    } // for-loop over particle species
    
@@ -428,26 +381,27 @@ void calculateMoments_V(
 
          vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = cell->get_velocity_blocks(popID);
          if (blockContainer.size() == 0) continue;
+         const Realf* data       = blockContainer.getData();
+         const Real* blockParams = blockContainer.getParameters();
          const Real mass = getObjectWrapper().particleSpecies[popID].mass;
 
-         // Get pointers for easy access in the loop
-         arch::buf<Realf> data = *v_data[cells.size() * popID + c]; 
-         arch::buf<Real> blockParams = *v_blockParams[cells.size() * popID + c]; 
-
          // Temporary array where moments are stored
-         Real array[3] = {0};
+         Real array[3];
+         for (int i=0; i<3; ++i) array[i] = 0.0;
 
          // Calculate species' contribution to second velocity moments
-         blockVelocitySecondMoments(data,
-                                    blockParams,
-                                    cell->parameters[CellParams::VX_R],
-                                    cell->parameters[CellParams::VY_R],
-                                    cell->parameters[CellParams::VZ_R],
-                                    array,
-                                    (uint)blockContainer.size());
+         Population & pop = cell->get_population(popID);
+         for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
+            blockVelocitySecondMoments(
+                                       data+blockLID*WID3,
+                                       blockParams+blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS,
+                                       cell->parameters[CellParams::VX_V],
+                                       cell->parameters[CellParams::VY_V],
+                                       cell->parameters[CellParams::VZ_V],
+                                       array);
+         } // for-loop over velocity blocks
          
          // Store species' contribution to 2nd bulk velocity moments
-         Population &pop = cell->get_population(popID);
          pop.P_V[0] = mass*array[0];
          pop.P_V[1] = mass*array[1];
          pop.P_V[2] = mass*array[2];
@@ -458,12 +412,6 @@ void calculateMoments_V(
          
       } // for-loop over spatial cells
    } // for-loop over particle species
-
-   // Delete temporary device buffers
-   for(auto buf_data : v_data)
-     delete buf_data;
-   for(auto buf_blockParams : v_blockParams)
-     delete buf_blockParams;
 
    phiprof::stop("Compute _V moments");
 }

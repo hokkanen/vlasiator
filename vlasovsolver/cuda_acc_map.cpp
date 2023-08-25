@@ -25,10 +25,11 @@
 #include <string.h>
 
 #include "cuda_acc_map.hpp"
-#include "cuda_acc_map_kernel.h"
+#include "cuda_acc_map_kernel.cuh"
 #include "vec.h"
 #include "../definitions.h"
 #include "../object_wrapper.h"
+#include "../cuda_context.cuh"
 
 #include "cpu_face_estimates.hpp"
 #include "cpu_1d_pqm.hpp"
@@ -197,7 +198,7 @@ __host__ bool cuda_acc_map_1d(spatial_cell::SpatialCell* spatial_cell,
       break;
    }
    // Copy indexing information to device (async)
-   CHK_ERR( cudaMemcpyAsync(dev_cell_indices_to_id[cuda_async_queue_id], cell_indices_to_id, 3*sizeof(uint), cudaMemcpyHostToDevice, stream) );
+   HANDLE_ERROR( cudaMemcpyAsync(dev_cell_indices_to_id[cuda_async_queue_id], cell_indices_to_id, 3*sizeof(uint), cudaMemcpyHostToDevice, stream) );
 
    const Realv i_dv=1.0/dv;
 
@@ -237,9 +238,9 @@ __host__ bool cuda_acc_map_1d(spatial_cell::SpatialCell* spatial_cell,
 
    // memcopy LIDlist to device (GIDlist isn't needed here)
    //cudaMemcpyAsync(dev_GIDlist[cuda_async_queue_id], GIDlist, blockDataN*sizeof(vmesh::GlobalID), cudaMemcpyHostToDevice, stream);
-   CHK_ERR( cudaMemcpyAsync(dev_LIDlist[cuda_async_queue_id], LIDlist, blockDataN*sizeof(vmesh::LocalID), cudaMemcpyHostToDevice, stream) );
-   CHK_ERR( cudaMemcpyAsync(dev_columnNumBlocks[cuda_async_queue_id], columnNumBlocks.data(), totalColumns*sizeof(uint), cudaMemcpyHostToDevice, stream) );
-   CHK_ERR( cudaMemcpyAsync(dev_columnBlockOffsets[cuda_async_queue_id], columnBlockOffsets.data(), totalColumns*sizeof(uint), cudaMemcpyHostToDevice, stream) );
+   HANDLE_ERROR( cudaMemcpyAsync(dev_LIDlist[cuda_async_queue_id], LIDlist, blockDataN*sizeof(vmesh::LocalID), cudaMemcpyHostToDevice, stream) );
+   HANDLE_ERROR( cudaMemcpyAsync(dev_columnNumBlocks[cuda_async_queue_id], columnNumBlocks.data(), totalColumns*sizeof(uint), cudaMemcpyHostToDevice, stream) );
+   HANDLE_ERROR( cudaMemcpyAsync(dev_columnBlockOffsets[cuda_async_queue_id], columnBlockOffsets.data(), totalColumns*sizeof(uint), cudaMemcpyHostToDevice, stream) );
 
    // Launch kernels for transposing and ordering velocity space data into columns
    reorder_blocks_by_dimension_glue(
@@ -430,7 +431,7 @@ __host__ bool cuda_acc_map_1d(spatial_cell::SpatialCell* spatial_cell,
    // Page lock (pin) again host memory for faster async transfers after kernel has run
    //cudaHostRegister(blockData, bdsw3*sizeof(Realf),cudaHostRegisterDefault);
    // Zero out target data on device
-   CHK_ERR( cudaMemsetAsync(dev_blockData, 0, bdsw3*sizeof(Realf), stream) );
+   HANDLE_ERROR( cudaMemsetAsync(dev_blockData, 0, bdsw3*sizeof(Realf), stream) );
 
    // Update value of cudaAllocationMultiplier if necessary
    float ratio1 = (blockDataSize / cuda_acc_allocatedSize);
@@ -469,7 +470,7 @@ __host__ bool cuda_acc_map_1d(spatial_cell::SpatialCell* spatial_cell,
    // cudaEventRecord(start, 0);
 
    // Copy column information to device (async)
-   CHK_ERR( cudaMemcpyAsync(dev_columns[cuda_async_queue_id], columns, totalColumns*sizeof(Column), cudaMemcpyHostToDevice, stream) );
+   HANDLE_ERROR( cudaMemcpyAsync(dev_columns[cuda_async_queue_id], columns, totalColumns*sizeof(Column), cudaMemcpyHostToDevice, stream) );
 
    // CALL CUDA FUNCTION WRAPPER/GLUE
    acceleration_1_glue(
