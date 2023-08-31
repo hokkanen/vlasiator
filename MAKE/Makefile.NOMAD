@@ -6,6 +6,7 @@ LNK = hipcc
 # module load partition/G
 # module load cpeAMD
 # module load rocm/5.3.3
+# module load Boost/1.79.0-cpeAMD-22.08
 
 #======== Vectorization ==========
 #Set vector backend type for vlasov solvers, sets precision and length. 
@@ -19,8 +20,8 @@ VECTORCLASS = VEC_FALLBACK_GENERIC
 # Default for VEC_FALLBACK_GENERIC is WID=4, VECL=8 
 WID=8
 VECL=64
-# WID=4
-# VECL=16
+#WID=4
+#VECL=16
 
 # Compile with GPU support (USE_HIP or USE_CUDA)
 USE_HIP=1
@@ -59,11 +60,12 @@ testpackage: CXXFLAGS +=  -DPAPI_MEM
 
 #======== Libraries ===========
 
-LIBRARY_PREFIX = /projappl/project_462000358/libraries
+LIBRARY_PREFIX = /scratch/project_465000538/vlasiator/libraries
 
 # Compiled libraries
-INC_BOOST = -isystem $(LIBRARY_PREFIX)/boost/include
-LIB_BOOST = -L$(LIBRARY_PREFIX)/boost/lib -lboost_program_options -Wl,-rpath=$(LIBRARY_PREFIX)/boost/lib
+#INC_BOOST = -isystem $(LIBRARY_PREFIX)/boost/include
+#LIB_BOOST = -L$(LIBRARY_PREFIX)/boost/lib -lboost_program_options -Wl,-rpath=$(LIBRARY_PREFIX)/boost/lib
+LIB_BOOST = -lboost_program_options
 
 INC_ZOLTAN = -isystem $(LIBRARY_PREFIX)/zoltan/include
 LIB_ZOLTAN = -L$(LIBRARY_PREFIX)/zoltan/lib -lzoltan -Wl,-rpath=$(LIBRARY_PREFIX)/zoltan/lib
